@@ -3,8 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 
-
-
 namespace EventEase.Controllers
 {
     public class BookingController : Controller
@@ -19,201 +17,295 @@ namespace EventEase.Controllers
         // ============================================
         // INDEX: Display all bookings + search feature
         // ============================================
-
         public async Task<IActionResult> Index(string searchString)
         {
-            // Start with all records from the SQL view
-            var query = _context.BookingDetails.AsQueryable();
-
-            // Check if user entered a search value
-            if (!string.IsNullOrEmpty(searchString))
+            try
             {
-                // Try to convert the search text into an integer
-                // If successful, search BookingID exactly
-                if (int.TryParse(searchString, out int bookingId))
+                var query = _context.BookingDetails.AsQueryable();
+
+                // Search functionality
+                if (!string.IsNullOrEmpty(searchString))
                 {
-                    query = query.Where(b => b.BookingID == bookingId);
+                    // Search by BookingID
+                    if (int.TryParse(searchString, out int bookingId))
+                    {
+                        query = query.Where(b => b.BookingID == bookingId);
+                    }
+                    else
+                    {
+                        // Search by Event Name
+                        query = query.Where(b =>
+                            b.EventName != null &&
+                            b.EventName.Contains(searchString));
+                    }
                 }
-                else
-                {
-                    // If search text is not a number,
-                    // search by Event Name using Contains
-                    query = query.Where(b =>
-                        b.EventName != null && b.EventName.Contains(searchString));
-                }
+
+                var bookings = await query.ToListAsync();
+
+                ViewBag.SearchString = searchString;
+
+                return View(bookings);
             }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] =
+                    "An error occurred while loading bookings.";
 
-            // Execute query and send result to the view
-            var bookings = await query.ToListAsync();
-
-            // Keep search text in the textbox after search
-            ViewBag.SearchString = searchString;
-
-            return View(bookings);
+                return View(new List<BookingDetailsView>());
+            }
         }
 
-        
+        // ============================================
+        // CREATE (GET)
+        // ============================================
         public IActionResult Create()
         {
-            ViewBag.Events = _context.Event.ToList();
-            ViewBag.Venues = _context.Venue.ToList();
-            return View();
+            try
+            {
+                ViewBag.Events = _context.Event.ToList();
+                ViewBag.Venues = _context.Venue.ToList();
+
+                return View();
+            }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] =
+                    "An error occurred while loading the page.";
+
+                return RedirectToAction(nameof(Index));
+            }
         }
+
         // ============================================
-        // CREATE (POST): Save new booking
+        // CREATE (POST)
         // ============================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(Booking booking)
         {
-            // Find the date of the selected event
-            var eventDate = _context.Event
-                .FirstOrDefault(e => e.EventID == booking.EventID)?.EventDate;
-
-            // ==========================================================
-            // DOUBLE-BOOKING VALIDATION
-            // Check whether the selected venue already has another booking
-            // for an event happening on the same date
-            // ==========================================================
-            var conflict = await _context.Booking
-                .AnyAsync(b => b.VenueID == booking.VenueID &&
-                               _context.Event.Any(e =>
-                                   e.EventID == b.EventID &&
-                                   e.EventDate == eventDate));
-
-            // If conflict exists, show validation error
-            if (conflict)
+            try
             {
-                ModelState.AddModelError("", "This venue is already booked for that date.");
+                // Get selected event
+                var selectedEvent = await _context.Event
+                    .FirstOrDefaultAsync(e => e.EventID == booking.EventID);
+
+                if (selectedEvent == null)
+                {
+                    ModelState.AddModelError("", "Selected event does not exist.");
+                }
+                else
+                {
+                    // Check for double booking
+                    var conflict = await _context.Booking
+                        .Include(b => b.Event)
+                        .AnyAsync(b =>
+                            b.VenueID == booking.VenueID &&
+                            b.Event.EventDate == selectedEvent.EventDate);
+
+                    if (conflict)
+                    {
+                        ModelState.AddModelError("",
+                            "This venue is already booked for the selected date.");
+                    }
+                }
+
+                // Save booking
+                if (ModelState.IsValid)
+                {
+                    _context.Booking.Add(booking);
+                    await _context.SaveChangesAsync();
+
+                    TempData["SuccessMessage"] =
+                        "Booking created successfully.";
+
+                    return RedirectToAction(nameof(Index));
+                }
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError("",
+                    "An unexpected error occurred while creating the booking.");
             }
 
-            // If all validation rules pass, save booking to database
-            if (ModelState.IsValid)
-            {
-                _context.Add(booking);
-                await _context.SaveChangesAsync();
-
-                // Store success message for display after redirect
-                TempData["SuccessMessage"] = "Booking created successfully.";
-
-                return RedirectToAction(nameof(Index));
-            }
-
-            // Reload dropdown lists if validation fails
-            ViewBag["EventID"] = new SelectList(_context.Event, "EventID", "EventName", booking.EventID); 
-            ViewBag["VenueID"] = new SelectList(_context.Venue, "VenueID", "VenueName", booking.VenueID);
-
-            return View(booking);
-        }
-
-        public async Task<IActionResult> Edit(int? id)
-        {
-            if (id == null)
-            {
-                return NotFound();
-            }
-
-            var booking = await _context.Booking.FindAsync(id);
-
-            if (booking == null)
-            {
-                return NotFound();
-            }
-
-            ViewData["Events"] = _context.Event.ToList();
-            ViewData["Venues"] = _context.Venue.ToList();
+            // Reload dropdowns
+            ViewBag.Events = _context.Event.ToList();
+            ViewBag.Venues = _context.Venue.ToList();
 
             return View(booking);
         }
 
         // ============================================
-        // EDIT (POST): Update existing booking
+        // EDIT (GET)
+        // ============================================
+        public async Task<IActionResult> Edit(int? id)
+        {
+            try
+            {
+                if (id == null)
+                {
+                    return NotFound();
+                }
+
+                var booking = await _context.Booking.FindAsync(id);
+
+                if (booking == null)
+                {
+                    return NotFound();
+                }
+
+                ViewBag.Events = _context.Event.ToList();
+                ViewBag.Venues = _context.Venue.ToList();
+
+                return View(booking);
+            }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] =
+                    "An error occurred while loading the booking.";
+
+                return RedirectToAction(nameof(Index));
+            }
+        }
+
+        // ============================================
+        // EDIT (POST)
         // ============================================
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, Booking booking)
         {
-            // Check if route ID matches booking ID
-            if (id != booking.BookingID) return NotFound();
-
-            // Find the date of the selected event
-            var eventDate = _context.Event
-                .FirstOrDefault(e => e.EventID == booking.EventID)?.EventDate;
-
-            // ==========================================================
-            // DOUBLE-BOOKING VALIDATION
-            // Check whether another booking (excluding current one)
-            // already exists for the same venue on the same event date
-            // ==========================================================
-            var conflict = await _context.Booking
-                .AnyAsync(b => b.BookingID != booking.BookingID &&
-                               b.VenueID == booking.VenueID &&
-                               _context.Event.Any(e =>
-                                   e.EventID == b.EventID &&
-                                   e.EventDate == eventDate));
-
-            // If conflict exists, show validation error
-            if (conflict)
+            if (id != booking.BookingID)
             {
-                ModelState.AddModelError("", "This venue is already booked for that date.");
+                return NotFound();
             }
 
-            // If model is valid, update booking
-            if (ModelState.IsValid)
+            try
             {
-                try
+                // Get selected event
+                var selectedEvent = await _context.Event
+                    .FirstOrDefaultAsync(e => e.EventID == booking.EventID);
+
+                if (selectedEvent == null)
+                {
+                    ModelState.AddModelError("",
+                        "Selected event does not exist.");
+                }
+                else
+                {
+                    // Check for double booking excluding current booking
+                    var conflict = await _context.Booking
+                        .Include(b => b.Event)
+                        .AnyAsync(b =>
+                            b.BookingID != booking.BookingID &&
+                            b.VenueID == booking.VenueID &&
+                            b.Event.EventDate == selectedEvent.EventDate);
+
+                    if (conflict)
+                    {
+                        ModelState.AddModelError("",
+                            "This venue is already booked for the selected date.");
+                    }
+                }
+
+                if (ModelState.IsValid)
                 {
                     _context.Update(booking);
                     await _context.SaveChangesAsync();
 
-                    TempData["SuccessMessage"] = "Booking updated successfully.";
+                    TempData["SuccessMessage"] =
+                        "Booking updated successfully.";
 
                     return RedirectToAction(nameof(Index));
                 }
-                catch (DbUpdateConcurrencyException)
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!_context.Booking.Any(e => e.BookingID == booking.BookingID))
                 {
-                    // If record no longer exists, return 404
-                    if (!_context.Booking.Any(e => e.BookingID == booking.BookingID))
-                        return NotFound();
-
-                    throw;
+                    return NotFound();
                 }
+
+                ModelState.AddModelError("",
+                    "Another user modified this booking.");
+            }
+            catch (Exception)
+            {
+                ModelState.AddModelError("",
+                    "An unexpected error occurred while updating the booking.");
             }
 
-            // Reload dropdown lists if validation fails
-            ViewData["EventID"] = new SelectList(_context.Event, "EventID", "EventName", booking.EventID);
-            ViewData["VenueID"] = new SelectList(_context.Venue, "VenueID", "VenueName", booking.VenueID);
+            // Reload dropdowns
+            ViewBag.Events = _context.Event.ToList();
+            ViewBag.Venues = _context.Venue.ToList();
 
             return View(booking);
         }
 
+        // ============================================
+        // DELETE (GET)
+        // ============================================
         public async Task<IActionResult> Delete(int? id)
         {
-            if (id == null)
+            try
             {
-                return NotFound();
+                if (id == null)
+                {
+                    return NotFound();
+                }
+
+                var booking = await _context.Booking
+                    .Include(b => b.Event)
+                    .Include(b => b.Venue)
+                    .FirstOrDefaultAsync(m => m.BookingID == id);
+
+                if (booking == null)
+                {
+                    return NotFound();
+                }
+
+                return View(booking);
             }
-
-            var booking = await _context.Booking
-                .Include(b => b.Event)
-                .Include(b => b.Venue)
-                .FirstOrDefaultAsync(m => m.BookingID == id);
-
-            if (booking == null)
+            catch (Exception)
             {
-                return NotFound();
-            }
+                TempData["ErrorMessage"] =
+                    "An error occurred while loading the booking.";
 
-            return View(booking);
+                return RedirectToAction(nameof(Index));
+            }
         }
 
+        // ============================================
+        // DELETE (POST)
+        // ============================================
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
         {
-            var booking = await _context.Booking.FindAsync(id);
-            _context.Booking.Remove(booking);
-            await _context.SaveChangesAsync();
+            try
+            {
+                var booking = await _context.Booking.FindAsync(id);
+
+                if (booking == null)
+                {
+                    TempData["ErrorMessage"] =
+                        "Booking not found.";
+
+                    return RedirectToAction(nameof(Index));
+                }
+
+                _context.Booking.Remove(booking);
+
+                await _context.SaveChangesAsync();
+
+                TempData["SuccessMessage"] =
+                    "Booking deleted successfully.";
+            }
+            catch (Exception)
+            {
+                TempData["ErrorMessage"] =
+                    "An error occurred while deleting the booking.";
+            }
+
             return RedirectToAction(nameof(Index));
         }
     }
