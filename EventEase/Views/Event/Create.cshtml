@@ -1,0 +1,109 @@
+﻿@model EventEase.Models.Event
+
+@{
+    ViewData["Title"] = "Create Event";
+}
+
+<h1>Create Event</h1>
+
+<hr />
+
+<div class="row">
+    <div class="col-md-6">
+
+        <form asp-action="Create">
+
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <!-- Event Name -->
+            <div class="form-group mb-3">
+                <label asp-for="EventName" class="control-label"></label>
+                <input asp-for="EventName" class="form-control" />
+                <span asp-validation-for="EventName" class="text-danger"></span>
+            </div>
+
+            <!-- Event Date -->
+            <div class="form-group mb-3">
+                <label asp-for="EventDate" class="control-label"></label>
+                <input asp-for="EventDate" class="form-control" type="datetime-local" />
+                <span asp-validation-for="EventDate" class="text-danger"></span>
+            </div>
+
+            <!-- Description -->
+            <div class="form-group mb-3">
+                <label asp-for="Description" class="control-label"></label>
+                <textarea asp-for="Description" class="form-control"></textarea>
+                <span asp-validation-for="Description" class="text-danger"></span>
+            </div>
+
+            <!-- Venue Dropdown -->
+            <div class="form-group mb-3">
+                <label asp-for="VenueID" class="control-label">
+                    Venue
+                </label>
+
+                <select asp-for="VenueID" class="form-control">
+
+                    <option value="">
+                        -- Select Venue --
+                    </option>
+
+                    @foreach (var venue in (List<EventEase.Models.Venue>)ViewData["Venues"])
+                    {
+                        <option value="@venue.VenueID">
+                            @venue.VenueName
+                        </option>
+                    }
+
+                </select>
+
+                <span asp-validation-for="VenueID" class="text-danger"></span>
+            </div>
+
+            <!-- Event Type Dropdown -->
+            <div class="form-group mb-3">
+                <label asp-for="EventTypeID" class="control-label">
+                    Event Type
+                </label>
+
+                <select asp-for="EventTypeID" class="form-control">
+
+                    <option value="">
+                        -- Select Event Type --
+                    </option>
+
+                    @foreach (var type in (List<EventEase.Models.EventType>)ViewData["EventTypes"])
+                    {
+                        <option value="@type.EventTypeID">
+                            @type.Name
+                        </option>
+                    }
+
+                </select>
+
+                <span asp-validation-for="EventTypeID" class="text-danger"></span>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="form-group mt-3">
+                <input type="submit"
+                       value="Create"
+                       class="btn btn-primary" />
+            </div>
+
+        </form>
+
+    </div>
+</div>
+
+<div class="mt-3">
+    <a asp-action="Index">
+        Back to List
+    </a>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

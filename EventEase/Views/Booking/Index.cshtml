@@ -1,0 +1,157 @@
+﻿@model IEnumerable<EventEase.Models.BookingDetailsView>
+
+@{
+    ViewData["Title"] = "Booking List";
+}
+
+<link href="https://fonts.googleapis.com/css2?family=Lato&family=Arimo&display=swap" rel="stylesheet">
+
+<style>
+    body {
+        font-family: 'Arimo', sans-serif;
+        background-color: #f0fff0;
+        color: #333;
+        padding: 20px;
+    }
+
+    h1 {
+        font-family: 'Lato', sans-serif;
+        font-size: 2.5rem;
+        margin-bottom: 20px;
+        color: #2F4F2F;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        background-color: white;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    }
+
+    th {
+        font-family: 'Lato', sans-serif;
+        background-color: #7CFC00;
+        color: black;
+        padding: 10px;
+        text-align: left;
+    }
+
+    td {
+        font-family: 'Arimo', sans-serif;
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+    }
+
+    tr:hover {
+        background-color: #e0ffe0;
+    }
+
+    .btn-azure {
+        display: inline-block;
+        padding: 10px 20px;
+        margin: 2px;
+        background-color: #7CFC00;
+        color: black;
+        border: none;
+        font-family: 'Lato', sans-serif;
+        font-weight: bold;
+        border-radius: 5px;
+        text-decoration: none;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+        .btn-azure:hover {
+            background-color: #32CD32;
+            color: black;
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+    .create-btn {
+        margin-bottom: 15px;
+    }
+
+    .action-btn {
+        font-size: 0.9rem;
+        padding: 5px 10px;
+        margin: 2px;
+    }
+
+    @@media (max-width: 768px) {
+        h1 {
+            font-size: 2rem;
+        }
+
+        table, th, td {
+            font-size: 0.9rem;
+        }
+
+        .btn-azure {
+            padding: 8px 15px;
+            font-size: 0.9rem;
+        }
+    }
+</style>
+
+<h1>Bookings</h1>
+
+
+
+
+<!-- SEARCH FUNCTIONALITY -->
+<form asp-action="Index" method="get" class="mb-3">
+    <div class="col-md-4">
+        <input type="text" name="searchString" value="@ViewBag.SearchString"
+               class="form-control"
+               placeholder="Search by Booking ID or Event Name" />
+    </div>
+    <div class="col-md-2">
+        <input type="submit" value="Search" class="btn-azure action-btn" />
+    </div>
+    <div class="col-md-2">
+        <a asp-action="Index" class="btn-azure action-btn">Clear</a>
+    </div>
+</form>
+
+<p>
+    <a asp-action="Create" class="btn-azure create-btn">Create New Booking</a>
+</p>
+
+<table class="table table-bordered table-striped">
+    <thead>
+        <tr>
+            <th>Booking ID</th>
+            <th>Booking Date</th>
+            <th>Event Name</th>
+            <th>Event Date</th>
+            <th>Description</th>
+            <th>Venue Name</th>
+            <th>Location</th>
+            <th>Capacity</th>
+            <th>Image</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.BookingID</td>
+                <td>@item.BookingDate.ToString("yyyy-MM-dd:mm")</td>
+                <td>@item.EventName</td>
+                <td>@item.EventDate.ToString("yyyy-MM-dd:mm")</td>
+                <td>@item.Description</td>
+                <td>@item.VenueName</td>
+                <td>@item.Location</td>
+                <td>@item.Capacity</td>
+                <td>
+                    @if (!string.IsNullOrEmpty(item.ImageUrl))
+                    {
+                        <img src="@item.ImageUrl" alt="Venue Image" width="100" height="70" />
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
